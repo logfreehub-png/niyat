@@ -16,5 +16,16 @@ class Settings(BaseSettings):
     code_ttl_minutes: int = 5  # tasdiqlash kodining amal qilish muddati
     code_max_attempts: int = 5
 
+    # Webhook rejimi: serverning ommaviy manzili (masalan https://niyat-baog.onrender.com).
+    # Bo'sh bo'lsa Render avtomatik beradigan RENDER_EXTERNAL_URL ishlatiladi.
+    # Ikkalasi ham bo'sh bo'lsa (lokal ishlab chiqish) — long polling.
+    public_url: str = ""
+    render_external_url: str = ""
+    telegram_webhook_secret: str = ""
+
+    @property
+    def webhook_base_url(self) -> str:
+        return (self.public_url or self.render_external_url).rstrip("/")
+
 
 settings = Settings()

@@ -211,3 +211,23 @@ def test_users_isolated(client):
     h2 = _auth(client, "+998907654321", 222)
     client.put(f"/days/{DAY}/prayers", json={"fajr": True}, headers=h1)
     assert client.get(f"/days/{DAY}", headers=h2).json()["prayers"]["fajr"] is False
+
+
+def test_telegram_webhook(client):
+    bot: FakeBot = telegram_bot.bot
+    update = {"update_id": 7, "message": {"chat": {"id": 777, "type": "private"}, "from": {"id": 777}, "text": "/start"}}
+    # Secret token'siz — rad etiladi
+    assert client.post(telegram_bot.WEBHOOK_PATH, json=update).status_code == 403
+    assert client.post(
+        telegram_bot.WEBHOOK_PATH, json=update, headers={"X-Telegram-Bot-Api-Secret-Token": "wrong"}
+    ).status_code == 403
+    r = client.post(
+        telegram_bot.WEBHOOK_PATH, json=update, headers={"X-Telegram-Bot-Api-Secret-Token": bot.webhook_secret}
+    )
+    assert r.status_code == 200
+    assert bot.sent[-1]["chat_id"] == 777 and "Assalomu alaykum" in bot.last_text()
+
+
+def test_root_ok(client):
+    assert client.get("/").status_code == 200
+    assert client.head("/").status_code == 200

@@ -1,6 +1,7 @@
 """Telegram bot (long polling): foydalanuvchi raqamini kontakt orqali tasdiqlaydi va kod yuboradi."""
 
 import asyncio
+import hashlib
 import logging
 from datetime import timedelta
 
@@ -13,6 +14,8 @@ from .models import PhoneVerification, utcnow
 from .phone import hash_code, new_code, normalize_phone
 
 log = logging.getLogger("niyat.bot")
+
+WEBHOOK_PATH = "/telegram/webhook"
 
 CONTACT_KEYBOARD = {
     "keyboard": [[{"text": "📱 Raqamni yuborish", "request_contact": True}]],
@@ -134,15 +137,50 @@ class TelegramBot:
             db.commit()
         await self.send_code(chat_id, code, purpose)
 
-    # ---------- Long polling ----------
+    # ---------- Webhook (production) ----------
+    @property
+    def webhook_secret(self) -> str:
+        # Barcha instansiyalarda bir xil bo'lishi uchun tokendan hosil qilinadi
+        return settings.telegram_webhook_secret or hashlib.sha256(self.token.encode()).hexdigest()[:48]
+
+    async def setup_webhook(self, base_url: str) -> None:
+        """Webhook'ni o'rnatadi. Xato bo'lsa server baribir ishga tushadi, keyinroq qayta uriniladi."""
+        for attempt in range(5):
+            try:
+                self.username = (await self.api("getMe"))["username"]
+                await self.api(
+                    "setWebhook",
+                    url=f"{base_url}{WEBHOOK_PATH}",
+                    secret_token=self.webhook_secret,
+                    allowed_updates=["message"],
+                    drop_pending_updates=False,
+                )
+                log.info("Telegram bot webhook rejimida: @%s -> %s%s", self.username, base_url, WEBHOOK_PATH)
+                return
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                log.exception("Webhook o'rnatishda xato (urinish %d/5)", attempt + 1)
+                await asyncio.sleep(5)
+
+    # ---------- Long polling (lokal ishlab chiqish) ----------
     async def run(self) -> None:
         offset = None
         while True:
             try:
                 if self.username is None:
-                    await self.api("deleteWebhook")
+                    info = await self.api("getWebhookInfo")
+                    if info.get("url"):
+                        # Production webhook'ini o'chirib yubormaslik uchun polling qilmaymiz
+                        log.warning(
+                            "Bot webhook rejimida ishlayapti (%s) — lokal polling o'chirildi. "
+                            "Lokal test uchun alohida bot tokenidan foydalaning.",
+                            info["url"],
+                        )
+                        self.username = (await self.api("getMe"))["username"]
+                        return
                     self.username = (await self.api("getMe"))["username"]
-                    log.info("Telegram bot ishga tushdi: @%s", self.username)
+                    log.info("Telegram bot ishga tushdi (polling): @%s", self.username)
                 updates = await self.api("getUpdates", offset=offset, timeout=25, allowed_updates=["message"])
                 for u in updates:
                     offset = u["update_id"] + 1
