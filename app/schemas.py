@@ -12,6 +12,7 @@ class PhoneStartOut(BaseModel):
     phone: str
     bot_url: str
     expires_in: int  # soniya
+    code_sent: bool = False  # True: raqam botga avval tanish — kod darhol Telegram'ga yuborildi
 
 
 class RegisterIn(BaseModel):

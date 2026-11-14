@@ -63,18 +63,71 @@ def _consume_code(db: Session, token: str, code: str, purpose: str) -> PhoneVeri
 
 
 # ---------------- Ro'yxatdan o'tish ----------------
+def _check_cooldown(db: Session, phone: str, purpose: str) -> None:
+    """Bir raqamga 1 daqiqada bittadan ortiq kod yubormaslik uchun."""
+    last = db.scalar(
+        select(PhoneVerification)
+        .where(
+            PhoneVerification.phone == phone,
+            PhoneVerification.purpose == purpose,
+            PhoneVerification.code_hash.is_not(None),
+        )
+        .order_by(PhoneVerification.created_at.desc())
+        .limit(1)
+    )
+    if last and utcnow() - last.created_at < timedelta(seconds=RESEND_COOLDOWN_SECONDS):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Biroz kuting va qayta urinib ko'ring (1 daqiqa)")
+
+
+def _expire_pending(db: Session, phone: str, purpose: str) -> None:
+    for old in db.scalars(
+        select(PhoneVerification).where(
+            PhoneVerification.phone == phone, PhoneVerification.purpose == purpose, PhoneVerification.used.is_(False)
+        )
+    ):
+        old.used = True
+
+
+async def _send_code_now(db: Session, bot: telegram_bot.TelegramBot, v: PhoneVerification, chat_id: int) -> bool:
+    """Kodni darhol Telegram'ga yuboradi. Yuborib bo'lmasa (bot bloklangan) — False, kod bekor qilinadi."""
+    v.chat_id = chat_id
+    code = bot.issue_code(v)
+    db.commit()
+    try:
+        await bot.send_code(chat_id, code, v.purpose)
+        return True
+    except Exception:
+        log.warning("Kodni yuborib bo'lmadi (chat %s)", chat_id)
+        v.code_hash = None
+        v.code_expires_at = None
+        return False
+
+
 @router.post("/phone/start", response_model=PhoneStartOut)
-def phone_start(data: PhoneStartIn, db: Session = Depends(get_db)):
-    """1-qadam: raqam qabul qilinadi va Telegram botga havola qaytariladi."""
+async def phone_start(data: PhoneStartIn, db: Session = Depends(get_db)):
+    """1-qadam: raqam qabul qilinadi.
+
+    Raqam botga avval tanish bo'lsa (kontakt bir marta yuborilgan) — kod darhol Telegram'ga
+    yuboriladi (`code_sent=True`). Aks holda bot havolasi qaytadi: foydalanuvchi botda raqamini yuboradi.
+    """
     phone = _phone_or_422(data.phone)
     bot = _bot_or_503()
     if _user_by_phone(db, phone):
         raise HTTPException(status.HTTP_409_CONFLICT, "Bu raqam allaqachon ro'yxatdan o'tgan. Kirish bo'limidan foydalaning")
+    chat_id = telegram_bot.known_chat(db, phone)
+    if chat_id:
+        _check_cooldown(db, phone, "register")
+        _expire_pending(db, phone, "register")
     v = PhoneVerification(token=secrets.token_urlsafe(24), phone=phone, purpose="register")
     db.add(v)
+    code_sent = await _send_code_now(db, bot, v, chat_id) if chat_id else False
     db.commit()
     return PhoneStartOut(
-        token=v.token, phone=phone, bot_url=bot.link(v.token), expires_in=settings.verification_ttl_minutes * 60
+        token=v.token,
+        phone=phone,
+        bot_url=bot.link(v.token),
+        expires_in=settings.verification_ttl_minutes * 60,
+        code_sent=code_sent,
     )
 
 
@@ -114,26 +167,12 @@ async def password_forgot(data: ForgotIn, db: Session = Depends(get_db)):
     if last and utcnow() - last.created_at < timedelta(seconds=RESEND_COOLDOWN_SECONDS):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Biroz kuting va qayta urinib ko'ring (1 daqiqa)")
     # Eski tiklash so'rovlarini bekor qilamiz
-    for old in db.scalars(
-        select(PhoneVerification).where(
-            PhoneVerification.phone == phone, PhoneVerification.purpose == "reset", PhoneVerification.used.is_(False)
-        )
-    ):
-        old.used = True
+    _expire_pending(db, phone, "reset")
 
-    v = PhoneVerification(token=secrets.token_urlsafe(24), phone=phone, purpose="reset", chat_id=user.telegram_chat_id)
+    v = PhoneVerification(token=secrets.token_urlsafe(24), phone=phone, purpose="reset")
     db.add(v)
-    code_sent = False
-    if user.telegram_chat_id:
-        code = bot.issue_code(v)
-        db.commit()
-        try:
-            await bot.send_code(user.telegram_chat_id, code, "reset")
-            code_sent = True
-        except Exception:
-            log.warning("Tiklash kodini yuborib bo'lmadi (chat %s)", user.telegram_chat_id)
-            v.code_hash = None
-            v.code_expires_at = None
+    chat_id = user.telegram_chat_id or telegram_bot.known_chat(db, phone)
+    code_sent = await _send_code_now(db, bot, v, chat_id) if chat_id else False
     db.commit()
     return ForgotOut(
         token=v.token,

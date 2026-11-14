@@ -231,3 +231,66 @@ def test_telegram_webhook(client):
 def test_root_ok(client):
     assert client.get("/").status_code == 200
     assert client.head("/").status_code == 200
+
+
+def test_known_number_gets_code_without_contact(client):
+    """Kontakt bir marta yuborilgach, bot raqamni eslab qoladi va keyingi safar kodni darhol yuboradi."""
+    bot: FakeBot = telegram_bot.bot
+    phone = "+998901212121"
+    # 1-safar: odatdagi oqim (kontakt yuboriladi), lekin ro'yxatdan o'tish tugallanmaydi
+    first = client.post("/auth/phone/start", json={"phone": phone}).json()
+    assert first["code_sent"] is False
+    bot.feed(1212, text=f"/start {first['token']}")
+    bot.feed(1212, contact={"phone_number": phone, "user_id": 1212})
+    assert _code_from(bot.last_text())
+
+    # 2-safar (1 daqiqa o'tmasidan): spamdan himoya
+    assert client.post("/auth/phone/start", json={"phone": phone}).status_code == 429
+
+    # 1 daqiqadan keyin: kod Telegram'ga darhol boradi, kontakt so'ralmaydi
+    from app.database import SessionLocal
+    from app.models import PhoneVerification
+    from datetime import timedelta
+
+    with SessionLocal() as db:
+        for v in db.query(PhoneVerification).all():
+            v.created_at -= timedelta(minutes=2)
+        db.commit()
+    sent_before = len(bot.sent)
+    r = client.post("/auth/phone/start", json={"phone": phone})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["code_sent"] is True
+    assert len(bot.sent) == sent_before + 1 and bot.sent[-1]["chat_id"] == 1212
+    code = _code_from(bot.last_text())
+    # eski so'rov bekor qilingan
+    assert client.post("/auth/register", json={"token": first["token"], "code": code, "password": "secret123"}).status_code == 400
+    r = client.post("/auth/register", json={"token": body["token"], "code": code, "password": "secret123"})
+    assert r.status_code == 201, r.text
+
+
+def test_known_chat_start_link_sends_code(client):
+    """Tanish chat bot havolasini ochsa — kontakt tugmasi o'rniga darhol kod keladi."""
+    bot: FakeBot = telegram_bot.bot
+    phone = "+998903434343"
+    first = client.post("/auth/phone/start", json={"phone": phone}).json()
+    bot.feed(3434, text=f"/start {first['token']}")
+    bot.feed(3434, contact={"phone_number": phone, "user_id": 3434})
+
+    from app.database import SessionLocal
+    from app.models import PhoneVerification
+    from datetime import timedelta
+
+    with SessionLocal() as db:
+        for v in db.query(PhoneVerification).all():
+            v.created_at -= timedelta(minutes=2)
+        db.commit()
+    bot.fail = True  # darhol yuborish muvaffaqiyatsiz bo'ldi (masalan, tarmoq)
+    body = client.post("/auth/phone/start", json={"phone": phone}).json()
+    assert body["code_sent"] is False
+    bot.fail = False
+    bot.feed(3434, text=f"/start {body['token']}")
+    assert "reply_markup" not in bot.sent[-1] or "keyboard" not in bot.sent[-1]["reply_markup"]
+    code = _code_from(bot.last_text())
+    r = client.post("/auth/register", json={"token": body["token"], "code": code, "password": "secret123"})
+    assert r.status_code == 201, r.text

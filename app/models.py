@@ -38,6 +38,21 @@ class PhoneVerification(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class TelegramContact(Base):
+    """Bot orqali tasdiqlangan "raqam ↔ Telegram chat" bog'lanishi.
+
+    Foydalanuvchi bir marta "Raqamni yuborish" tugmasi orqali o'z kontaktini yuborgach,
+    keyingi safar kod so'ralganda bot uni qayta so'ramaydi — kodni to'g'ridan-to'g'ri yuboradi.
+    """
+
+    __tablename__ = "telegram_contacts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    phone: Mapped[str] = mapped_column(String(20), unique=True, index=True)
+    chat_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
 class DailyLog(Base):
     __tablename__ = "daily_logs"
     __table_args__ = (UniqueConstraint("user_id", "date"),)

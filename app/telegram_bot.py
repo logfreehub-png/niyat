@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from .config import settings
 from .database import SessionLocal
-from .models import PhoneVerification, utcnow
+from .models import PhoneVerification, TelegramContact, utcnow
 from .phone import hash_code, new_code, normalize_phone
 
 log = logging.getLogger("niyat.bot")
@@ -23,6 +23,22 @@ CONTACT_KEYBOARD = {
     "one_time_keyboard": True,
 }
 REMOVE_KEYBOARD = {"remove_keyboard": True}
+
+
+def known_chat(db, phone: str) -> int | None:
+    """Raqam avval bot orqali tasdiqlangan bo'lsa — uning Telegram chat ID'si."""
+    c = db.scalar(select(TelegramContact).where(TelegramContact.phone == phone))
+    return c.chat_id if c else None
+
+
+def remember_contact(db, phone: str, chat_id: int) -> None:
+    """Kontakt orqali tasdiqlangan raqamni eslab qoladi (commit chaqiruvchida)."""
+    c = db.scalar(select(TelegramContact).where(TelegramContact.phone == phone))
+    if c is None:
+        db.add(TelegramContact(phone=phone, chat_id=chat_id))
+    else:
+        c.chat_id = chat_id
+        c.updated_at = utcnow()
 
 
 class TelegramBot:
@@ -100,8 +116,13 @@ class TelegramBot:
                 )
                 return
             v.chat_id = chat_id
-            db.commit()
             phone, purpose = v.phone, v.purpose
+            # Bu raqamni shu chat avval tasdiqlagan bo'lsa — kontakt so'ramasdan kod yuboramiz
+            code = self.issue_code(v) if known_chat(db, phone) == chat_id else None
+            db.commit()
+        if code:
+            await self.send_code(chat_id, code, purpose)
+            return
         action = "parolni tiklash" if purpose == "reset" else "raqamini tasdiqlash"
         await self.send(
             chat_id,
@@ -134,6 +155,7 @@ class TelegramBot:
                 return
             code = self.issue_code(v)
             purpose = v.purpose
+            remember_contact(db, phone, chat_id)
             db.commit()
         await self.send_code(chat_id, code, purpose)
 
