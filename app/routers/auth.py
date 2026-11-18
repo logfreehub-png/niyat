@@ -13,7 +13,7 @@ from ..config import settings
 from ..database import get_db
 from ..models import PhoneVerification, User, utcnow
 from ..phone import check_code, normalize_phone
-from ..schemas import ForgotIn, ForgotOut, PhoneStartIn, PhoneStartOut, RegisterIn, ResetIn, Token, UserOut
+from ..schemas import ForgotIn, ForgotOut, PhoneStartIn, PhoneStartOut, ProfileIn, RegisterIn, ResetIn, Token, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 log = logging.getLogger("niyat.auth")
@@ -209,4 +209,17 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
 
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(get_current_user)):
+    return user
+
+
+@router.patch("/me", response_model=UserOut)
+def update_me(data: ProfileIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Profil: ism va rasm."""
+    if data.name is not None:
+        user.name = " ".join(data.name.split())
+    if data.avatar is not None:
+        if data.avatar and not data.avatar.startswith(("data:image/jpeg;base64,", "data:image/png;base64,", "data:image/webp;base64,")):
+            raise HTTPException(status_code=422, detail="Rasm formati noto'g'ri")
+        user.avatar = data.avatar
+    db.commit()
     return user

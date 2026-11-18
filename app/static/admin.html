@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Niyat — Admin panel</title>
+<style>
+  :root {
+    --bg: #F7F1E3; --surface: #FFFBF2; --alt: #EFE6D2; --text: #1F2A24; --muted: #6B6A5E;
+    --border: #E3D8C0; --primary: #0F7B5F; --primary-soft: #D6EDE4; --danger: #B4443A; --gold: #C9962B;
+    --hero: #0E3B31;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  .hidden { display: none !important; }
+
+  /* Kirish */
+  #login { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+  .login-card { width: 100%; max-width: 380px; background: var(--surface); border: 1px solid var(--border); border-radius: 22px; padding: 28px; text-align: center; }
+  .logo { width: 64px; height: 64px; border-radius: 18px; background: linear-gradient(160deg, #13866A, #0A5A46); display: grid; place-items: center; margin: 0 auto 12px; }
+  .login-card h1 { margin: 0 0 4px; font-size: 24px; color: var(--primary); }
+  .login-card p { margin: 0 0 20px; color: var(--muted); }
+
+  /* Umumiy */
+  .field { display: block; text-align: left; margin-bottom: 12px; }
+  .field > span { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+  input[type=text], input[type=password], input[type=number], input[type=search], textarea, select {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: #fff; outline: none;
+  }
+  input:focus, textarea:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+  textarea { resize: vertical; min-height: 90px; }
+  .arabic { direction: rtl; font-size: 20px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid transparent; border-radius: 12px; padding: 9px 16px; font-weight: 700; cursor: pointer; background: var(--primary); color: #fff; }
+  .btn:hover { filter: brightness(1.06); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn.ghost { background: transparent; color: var(--text); border-color: var(--border); }
+  .btn.danger { background: transparent; color: var(--danger); border-color: #E7C2BD; }
+  .btn.block { width: 100%; padding: 12px; }
+  .err { color: var(--danger); font-size: 14px; min-height: 20px; margin-top: 8px; }
+
+  /* Tuzilma */
+  header { background: var(--hero); color: #fff; }
+  .bar { max-width: 1180px; margin: 0 auto; padding: 14px 20px; display: flex; align-items: center; gap: 14px; }
+  .bar .brand { font-weight: 800; font-size: 18px; display: flex; align-items: center; gap: 10px; }
+  .bar .brand small { font-weight: 600; opacity: .7; font-size: 13px; }
+  nav { display: flex; gap: 4px; margin-left: 16px; }
+  nav button { background: transparent; border: 0; color: rgba(255,255,255,.75); padding: 8px 14px; border-radius: 10px; font-weight: 700; cursor: pointer; }
+  nav button.active { background: rgba(255,255,255,.14); color: #fff; }
+  .spacer { flex: 1; }
+  .bar .btn.ghost { color: #fff; border-color: rgba(255,255,255,.3); padding: 7px 12px; }
+  main { max-width: 1180px; margin: 0 auto; padding: 24px 20px 60px; }
+  h2 { margin: 0 0 4px; font-size: 22px; }
+  .sub { color: var(--muted); margin: 0 0 18px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 18px; }
+  .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+  /* Statistika */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; }
+  .kpi .v { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .kpi .l { color: var(--muted); font-size: 13px; font-weight: 600; }
+  .kpi.accent { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .kpi.accent .l { color: rgba(255,255,255,.8); }
+  .chart { display: flex; align-items: flex-end; gap: 6px; height: 180px; padding-top: 10px; }
+  .chart .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+  .chart .b { width: 100%; max-width: 34px; background: var(--primary); border-radius: 6px 6px 2px 2px; min-height: 2px; position: relative; }
+  .chart .b.s { background: var(--gold); max-width: 12px; }
+  .chart .pair { display: flex; align-items: flex-end; gap: 3px; width: 100%; justify-content: center; height: 100%; }
+  .chart .n { font-size: 11px; font-weight: 700; color: var(--muted); }
+  .chart .d { font-size: 11px; color: var(--muted); }
+  .legend { display: flex; gap: 14px; font-size: 13px; color: var(--muted); }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+
+  /* Zikrlar */
+  .zlist { display: grid; gap: 12px; }
+  .z { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; }
+  .z.off { opacity: .6; }
+  .z-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; }
+  .z-ic { width: 40px; height: 40px; border-radius: 12px; background: var(--primary-soft); color: var(--primary); display: grid; place-items: center; font-weight: 800; flex: none; }
+  .z-title { font-weight: 700; }
+  .z-meta { color: var(--muted); font-size: 13px; }
+  .z-ar { direction: rtl; color: var(--muted); font-size: 17px; margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--alt); color: var(--muted); }
+  .pill.g { background: var(--primary-soft); color: var(--primary); }
+  .z-body { border-top: 1px solid var(--border); padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  .z-body .full { grid-column: 1 / -1; }
+  .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; }
+  .switch input { width: 18px; height: 18px; accent-color: var(--primary); }
+  .actions { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+  .saved { color: var(--primary); font-weight: 700; font-size: 14px; margin-right: auto; }
+
+  /* Foydalanuvchilar */
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: var(--alt); }
+  .tablewrap { overflow-x: auto; }
+  .meter { display: inline-block; width: 60px; height: 6px; border-radius: 3px; background: var(--alt); vertical-align: middle; margin-right: 6px; overflow: hidden; }
+  .meter > i { display: block; height: 100%; background: var(--primary); }
+  .who { display: flex; align-items: center; gap: 10px; }
+  .ava { border-radius: 50%; object-fit: cover; background: var(--primary-soft); color: var(--primary); display: inline-grid; place-items: center; font-weight: 800; flex: none; }
+  .online { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #2BB38A; margin-right: 6px; }
+  .pager { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; color: var(--muted); }
+
+  /* Batafsil oyna */
+  .drawer-bg { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; justify-content: flex-end; z-index: 10; }
+  .drawer { width: min(520px, 100%); height: 100%; background: var(--bg); overflow-y: auto; padding: 22px; }
+  .hist { display: flex; gap: 4px; align-items: flex-end; height: 120px; }
+  .hist .c { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 3px; height: 100%; }
+  .hist .p { width: 100%; background: var(--primary); border-radius: 4px; min-height: 2px; }
+  .hist .z2 { width: 100%; background: var(--gold); border-radius: 4px; min-height: 2px; }
+  .hist .d { font-size: 10px; color: var(--muted); }
+  .mini { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .empty { color: var(--muted); text-align: center; padding: 30px; }
+  @media (max-width: 720px) { .z-body { grid-template-columns: 1fr; } nav { margin-left: 0; } .bar { flex-wrap: wrap; } .z-ar { display: none; } }
+</style>
+</head>
+<body>
+
+<section id="login">
+  <form class="login-card" id="loginForm">
+    <div class="logo">
+      <svg width="34" height="34" viewBox="0 0 24 24"><path fill="#FFFBF2" d="M14.5 2.5a9.5 9.5 0 1 0 7 15.9A8 8 0 1 1 14.5 2.5z"/><path fill="#F4D58D" d="M18 6l.7 1.6 1.7.2-1.3 1.1.4 1.7-1.5-.9-1.5.9.4-1.7-1.3-1.1 1.7-.2z"/></svg>
+    </div>
+    <h1>Niyat admin</h1>
+    <p>Zikrlar va foydalanuvchilarni boshqarish</p>
+    <label class="field"><span>Admin paroli</span><input type="password" id="password" autocomplete="current-password" required /></label>
+    <button class="btn block" type="submit">Kirish</button>
+    <div class="err" id="loginErr"></div>
+  </form>
+</section>
+
+<section id="app" class="hidden">
+  <header>
+    <div class="bar">
+      <div class="brand">☾ Niyat <small>admin</small></div>
+      <nav>
+        <button data-tab="stats" class="active">Statistika</button>
+        <button data-tab="zikrs">Zikrlar</button>
+        <button data-tab="users">Foydalanuvchilar</button>
+      </nav>
+      <div class="spacer"></div>
+      <button class="btn ghost" id="logout">Chiqish</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Statistika -->
+    <div data-page="stats">
+      <h2>Statistika</h2>
+      <p class="sub" id="statsSub">Yuklanmoqda…</p>
+      <div class="kpis" id="kpis"></div>
+      <div class="card">
+        <div class="row" style="justify-content: space-between; margin-bottom: 6px;">
+          <strong>So'nggi 14 kun</strong>
+          <div class="legend"><span><i class="dot" style="background:var(--primary)"></i>Faol foydalanuvchilar</span><span><i class="dot" style="background:var(--gold)"></i>Yangi ro'yxatdan o'tganlar</span></div>
+        </div>
+        <div class="chart" id="chart"></div>
+      </div>
+    </div>
+
+    <!-- Zikrlar -->
+    <div data-page="zikrs" class="hidden">
+      <div class="row" style="justify-content: space-between; margin-bottom: 18px;">
+        <div>
+          <h2>Default zikrlar</h2>
+          <p class="sub" style="margin:0">Bu ro'yxat barcha foydalanuvchilarda ko'rinadi. Foydalanuvchi o'zgartirgan matnlari o'zida saqlanadi.</p>
+        </div>
+        <button class="btn" id="addZikr">+ Yangi zikr</button>
+      </div>
+      <div class="zlist" id="zlist"></div>
+    </div>
+
+    <!-- Foydalanuvchilar -->
+    <div data-page="users" class="hidden">
+      <div class="row" style="justify-content: space-between; margin-bottom: 14px;">
+        <div><h2>Foydalanuvchilar</h2><p class="sub" style="margin:0" id="usersSub"></p></div>
+        <div class="row">
+          <input type="search" id="q" placeholder="Ism yoki telefon raqam" style="width: 260px" />
+          <select id="sort" style="width: auto"><option value="last_seen">Oxirgi faollik</option><option value="created">Ro'yxatdan o'tgan</option></select>
+        </div>
+      </div>
+      <div class="card" style="padding: 0">
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Foydalanuvchi</th><th>Oxirgi faollik</th><th>Ro'yxatdan o'tgan</th><th>30 kunda faol</th><th>Bugun namoz</th><th>Bugun zikr</th><th>Shaxsiy zikr</th><th>Telegram</th></tr></thead>
+            <tbody id="ubody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="pager"><span id="pinfo"></span><span class="row"><button class="btn ghost" id="prev">← Oldingi</button><button class="btn ghost" id="next">Keyingi →</button></span></div>
+    </div>
+  </main>
+</section>
+
+<div id="drawer" class="drawer-bg hidden"></div>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let token = sessionStorage.getItem('niyatAdmin');
+let ICONS = [];
+const PAGE = 30;
+let uOffset = 0;
+
+async function api(path, opts = {}) {
+  const headers = { ...(opts.headers || {}) };
+  if (token) headers.Authorization = 'Bearer ' + token;
+  if (opts.body && typeof opts.body !== 'string') { headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(opts.body); }
+  const r = await fetch(path, { ...opts, headers });
+  if (r.status === 401) { logout(); throw new Error('Sessiya tugadi'); }
+  if (!r.ok) {
+    let msg = 'Xatolik (' + r.status + ')';
+    try { const b = await r.json(); if (typeof b.detail === 'string') msg = b.detail; } catch {}
+    throw new Error(msg);
+  }
+  return r.status === 204 ? null : r.json();
+}
+
+function fmt(dt) {
+  if (!dt) return '—';
+  const d = new Date(dt);
+  return d.toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + dt.slice(11, 16);
+}
+function ago(dt) {
+  if (!dt) return '—';
+  // dt — Toshkent vaqti (UTC+5), "YYYY-MM-DDTHH:MM"
+  const t = Date.parse(dt + ':00+05:00');
+  const m = Math.round((Date.now() - t) / 60000);
+  if (m < 1) return 'hozir';
+  if (m < 60) return m + ' daqiqa oldin';
+  if (m < 1440) return Math.round(m / 60) + ' soat oldin';
+  return Math.round(m / 1440) + ' kun oldin';
+}
+const isOnline = (dt) => dt && Date.now() - Date.parse(dt + ':00+05:00') < 15 * 60000;
+
+// ---------- Kirish ----------
+$('#loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('#loginErr').textContent = '';
+  try {
+    const r = await api('/admin/api/login', { method: 'POST', body: { password: $('#password').value } });
+    token = r.token; sessionStorage.setItem('niyatAdmin', token);
+    start();
+  } catch (err) { $('#loginErr').textContent = err.message; }
+});
+function logout() { token = null; sessionStorage.removeItem('niyatAdmin'); $('#app').classList.add('hidden'); $('#login').classList.remove('hidden'); }
+$('#logout').onclick = logout;
+
+// ---------- Bo'limlar ----------
+document.querySelectorAll('nav button').forEach((b) => b.onclick = () => show(b.dataset.tab));
+function show(tab) {
+  document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('[data-page]').forEach((p) => p.classList.toggle('hidden', p.dataset.page !== tab));
+  ({ stats: loadStats, zikrs: loadZikrs, users: loadUsers })[tab]();
+  location.hash = tab;
+}
+
+// ---------- Statistika ----------
+async function loadStats() {
+  const s = await api('/admin/api/stats');
+  $('#statsSub').textContent = 'Bugun: ' + s.today + ' (Toshkent vaqti)';
+  const k = [
+    ['Jami foydalanuvchilar', s.users_total, true],
+    ['Bugun faol', s.active_today],
+    ['Hozir onlayn (15 daq.)', s.online_15m],
+    ['Bugun ilovani ochgan', s.seen_today],
+    ['Yangi — bugun', s.users_new_today],
+    ['Yangi — 7 kun', s.users_new_7d],
+    ['Bugungi zikrlar soni', s.zikr_total_today.toLocaleString('ru-RU')],
+    ['Belgilangan namozlar', s.prayers_marked_today],
+    ['Kechki xulosalar', s.reflections_today],
+    ['Shaxsiy zikrlar', s.custom_zikrs],
+  ];
+  $('#kpis').innerHTML = k.map(([l, v, a]) => `<div class="kpi ${a ? 'accent' : ''}"><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></div>`).join('');
+  const max = Math.max(1, ...s.series.map((x) => Math.max(x.active, x.signups)));
+  $('#chart').innerHTML = s.series.map((x) => `
+    <div class="col" title="${x.date}: ${x.active} faol, ${x.signups} yangi">
+      <span class="n">${x.active || ''}</span>
+      <div class="pair">
+        <div class="b" style="height:${(x.active / max) * 100}%"></div>
+        <div class="b s" style="height:${(x.signups / max) * 100}%"></div>
+      </div>
+      <span class="d">${x.date.slice(8)}.${x.date.slice(5, 7)}</span>
+    </div>`).join('');
+}
+
+// ---------- Zikrlar ----------
+async function loadZikrs() {
+  const r = await api('/admin/api/zikrs');
+  ICONS = r.icons;
+  const list = $('#zlist');
+  list.innerHTML = r.zikrs.length ? '' : '<div class="card empty">Hali zikr yo\'q</div>';
+  r.zikrs.forEach((z) => list.appendChild(zikrCard(z)));
+}
+
+function iconOptions(sel) {
+  const all = ICONS.includes(sel) || !sel ? ICONS : [sel, ...ICONS];
+  return all.map((i) => `<option value="${esc(i)}" ${i === sel ? 'selected' : ''}>${esc(i)}</option>`).join('');
+}
+
+function zikrCard(z, isNew = false) {
+  const el = document.createElement('div');
+  el.className = 'z' + (z.active === false ? ' off' : '');
+  el.innerHTML = `
+    <div class="z-head">
+      <div class="z-ic">${esc((z.title || '+').trim()[0] || '+')}</div>
+      <div>
+        <div class="z-title">${esc(z.title || 'Yangi zikr')}</div>
+        <div class="z-meta">Maqsad: ${esc(z.target ?? 100)} · Tartib: ${esc(z.sort_order ?? '—')}
+          ${z.active === false ? ' · <span class="pill">o\'chirilgan</span>' : ''}
+          ${z.users_today ? ` · <span class="pill g">bugun ${z.users_today} kishi</span>` : ''}
+          ${z.legacy_key ? ' · <span class="pill">asosiy</span>' : ''}</div>
+      </div>
+    </div>
+    <form class="z-body ${isNew ? '' : 'hidden'}">
+      <label class="field full"><span>Nomi</span><input type="text" name="title" value="${esc(z.title)}" required maxlength="200" /></label>
+      <label class="field full"><span>O'zbekcha o'qilishi va ma'nosi (tasbeh ichida ko'rinadi)</span><textarea name="text" rows="6">${esc(z.text)}</textarea></label>
+      <label class="field"><span>Kunlik maqsad (necha marta)</span><input type="number" name="target" min="1" max="100000" value="${esc(z.target ?? 100)}" required /></label>
+      <label class="field"><span>Tartib raqami (kichigi oldinda)</span><input type="number" name="sort_order" value="${esc(z.sort_order ?? 0)}" /></label>
+      <label class="field"><span>Ikonka</span><select name="icon">${iconOptions(z.icon || 'star-four-points-outline')}</select></label>
+      <label class="field" style="align-self:end"><span>&nbsp;</span><span class="switch"><input type="checkbox" name="active" ${z.active !== false ? 'checked' : ''} /> Foydalanuvchilarga ko'rinsin</span></label>
+      <div class="actions">
+        <span class="saved"></span>
+        ${isNew ? '<button type="button" class="btn ghost" data-cancel>Bekor qilish</button>' : '<button type="button" class="btn danger" data-del>O\'chirish</button>'}
+        <button type="submit" class="btn">${isNew ? 'Qo\'shish' : 'Saqlash'}</button>
+      </div>
+    </form>`;
+  const form = $('form', el);
+  $('.z-head', el).onclick = () => form.classList.toggle('hidden');
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const f = new FormData(form);
+    const body = {
+      title: f.get('title'), text: f.get('text'), icon: f.get('icon'),
+      target: Number(f.get('target')), sort_order: Number(f.get('sort_order')), active: form.active.checked,
+    };
+    try {
+      if (isNew) await api('/admin/api/zikrs', { method: 'POST', body });
+      else await api('/admin/api/zikrs/' + z.id, { method: 'PATCH', body });
+      if (isNew) return loadZikrs();
+      $('.saved', el).textContent = '✓ Saqlandi';
+      setTimeout(loadZikrs, 700);
+    } catch (err) { alertBox(err.message); }
+  };
+  const del = $('[data-del]', el);
+  if (del) del.onclick = async () => {
+    if (!confirm(`"${z.title}" zikrini butunlay o'chirasizmi?\nBarcha foydalanuvchilarning shu zikr bo'yicha sanoqlari ham o'chadi.\nVaqtincha yashirish uchun "Foydalanuvchilarga ko'rinsin" belgisini olib tashlang.`)) return;
+    try { await api('/admin/api/zikrs/' + z.id, { method: 'DELETE' }); loadZikrs(); } catch (err) { alertBox(err.message); }
+  };
+  const cancel = $('[data-cancel]', el);
+  if (cancel) cancel.onclick = () => el.remove();
+  return el;
+}
+$('#addZikr').onclick = () => {
+  const el = zikrCard({ title: '', arabic: '', text: '', target: 100, sort_order: 0, active: true, icon: 'star-four-points-outline' }, true);
+  $('#zlist').prepend(el);
+  $('input[name=title]', el).focus();
+};
+function alertBox(msg) { alert(msg); }
+
+// ---------- Foydalanuvchilar ----------
+function avatar(u, size = 34) {
+  const st = `width:${size}px;height:${size}px`;
+  if (u.avatar && u.avatar.startsWith('data:image/')) return `<img class="ava" style="${st}" src="${esc(u.avatar)}" alt="" />`;
+  const letter = (u.name || '').trim()[0] || '☾';
+  return `<span class="ava" style="${st}">${esc(letter.toUpperCase())}</span>`;
+}
+let qTimer;
+$('#q').addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(() => { uOffset = 0; loadUsers(); }, 300); });
+$('#sort').onchange = () => { uOffset = 0; loadUsers(); };
+$('#prev').onclick = () => { uOffset = Math.max(0, uOffset - PAGE); loadUsers(); };
+$('#next').onclick = () => { uOffset += PAGE; loadUsers(); };
+
+async function loadUsers() {
+  const p = new URLSearchParams({ q: $('#q').value, sort: $('#sort').value, offset: uOffset, limit: PAGE });
+  const r = await api('/admin/api/users?' + p);
+  $('#usersSub').textContent = 'Jami: ' + r.total;
+  $('#ubody').innerHTML = r.items.length ? r.items.map((u) => `
+    <tr data-id="${u.id}">
+      <td><div class="who">${avatar(u)}<div><strong>${isOnline(u.last_seen_at) ? '<i class="online" title="onlayn"></i>' : ''}${esc(u.name || u.phone)}</strong>${u.name ? `<div class="z-meta">${esc(u.phone)}</div>` : ''}</div></div></td>
+      <td title="${esc(fmt(u.last_seen_at))}">${esc(ago(u.last_seen_at))}</td>
+      <td>${esc(fmt(u.created_at))}</td>
+      <td>${u.active_days_30} kun</td>
+      <td>${u.prayers_today}/5</td>
+      <td><span class="meter"><i style="width:${u.zikr_progress_today}%"></i></span>${u.zikr_progress_today}%</td>
+      <td>${u.custom_zikrs}</td>
+      <td>${u.telegram ? '✓' : '—'}</td>
+    </tr>`).join('') : '<tr><td colspan="8" class="empty">Foydalanuvchi topilmadi</td></tr>';
+  $('#pinfo').textContent = r.total ? `${uOffset + 1}–${Math.min(uOffset + PAGE, r.total)} / ${r.total}` : '';
+  $('#prev').disabled = uOffset === 0;
+  $('#next').disabled = uOffset + PAGE >= r.total;
+  document.querySelectorAll('#ubody tr[data-id]').forEach((tr) => tr.onclick = () => openUser(tr.dataset.id));
+}
+
+async function openUser(id) {
+  const u = await api('/admin/api/users/' + id);
+  const d = $('#drawer');
+  d.innerHTML = `<div class="drawer">
+    <div class="row" style="justify-content:space-between"><div class="who">${avatar(u, 48)}<div><h2>${esc(u.name || u.phone)}</h2>${u.name ? `<div class="z-meta">${esc(u.phone)}</div>` : ''}</div></div><button class="btn ghost" data-close>Yopish</button></div>
+    <p class="sub">Ro'yxatdan o'tgan: ${esc(fmt(u.created_at))} · Oxirgi faollik: ${esc(ago(u.last_seen_at))} · Telegram: ${u.telegram ? 'bog\'langan' : 'yo\'q'}</p>
+    <div class="card" style="margin-bottom:14px">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><strong>14 kunlik faollik</strong>
+        <div class="legend"><span><i class="dot" style="background:var(--primary)"></i>Namoz</span><span><i class="dot" style="background:var(--gold)"></i>Zikr %</span></div></div>
+      <div class="hist">${u.history.map((h) => `
+        <div class="c" title="${h.date}: namoz ${h.prayers_done}/5, zikr ${h.zikr_progress}%${h.score ? ', baho ' + h.score : ''}">
+          <div style="display:flex;gap:2px;align-items:flex-end;height:100%;width:100%">
+            <div class="p" style="height:${h.prayers_done * 20}%"></div><div class="z2" style="height:${h.zikr_progress}%"></div>
+          </div><span class="d">${h.date.slice(8)}</span></div>`).join('')}</div>
+    </div>
+    <div class="card">
+      <strong>Bugungi zikrlar</strong>
+      ${u.zikrs.map((z) => `<div class="mini"><span>${esc(z.title)} ${z.is_custom ? '<span class="pill g">shaxsiy</span>' : z.edited ? '<span class="pill">o\'zgartirgan</span>' : ''}</span><span><strong>${z.today}</strong> / ${z.target}</span></div>`).join('') || '<div class="empty">—</div>'}
+    </div>
+  </div>`;
+  d.classList.remove('hidden');
+  d.onclick = (e) => { if (e.target === d || e.target.hasAttribute('data-close')) d.classList.add('hidden'); };
+}
+
+// ---------- Boshlash ----------
+function start() {
+  $('#login').classList.add('hidden');
+  $('#app').classList.remove('hidden');
+  const tab = location.hash.slice(1);
+  show(['stats', 'zikrs', 'users'].includes(tab) ? tab : 'stats');
+}
+if (token) start();
+</script>
+</body>
+</html>

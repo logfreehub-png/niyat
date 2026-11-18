@@ -1,0 +1,124 @@
+{
+  "expo": {
+    "name": "Niyat",
+    "slug": "niyat",
+    "scheme": "niyat",
+    "version": "1.2.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#F7F1E3",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "uz.niyat.app"
+    },
+    "android": {
+      "package": "uz.niyat.app",
+      "versionCode": 4,
+      "permissions": [
+        "VIBRATE",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#F7F1E3",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/android-icon-monochrome.png",
+          "color": "#0F7B5F"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Profil rasmini tanlash uchun kerak.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Namoz vaqtlarini joylashuvingiz bo'yicha hisoblash uchun kerak."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#F7F1E3",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#0F1B2D"
+          }
+        }
+      ],
+      "expo-font",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "NiyatPrayers",
+              "label": "Niyat — Reja va majburiyatlar",
+              "description": "Kunlik rejalar va 5 mahal namoz. Bosib bajarildi deb belgilang.",
+              "minWidth": "250dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "maxResizeWidth": "520dp",
+              "maxResizeHeight": "260dp",
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "NiyatToday",
+              "label": "Niyat — Zikr va salovatlar",
+              "description": "Bugungi zikr va salovatlar: foiz va har birining sanog'i.",
+              "minWidth": "110dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 2,
+              "targetCellHeight": 2,
+              "maxResizeWidth": "520dp",
+              "maxResizeHeight": "260dp",
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
+      ],
+      "./plugins/withShortNativeBuildPath"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "942597ef-41e3-4342-ac17-fe3c22e64b9a"
+      }
+    },
+    "owner": "ahmadjon27"
+  }
+}

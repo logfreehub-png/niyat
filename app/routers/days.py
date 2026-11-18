@@ -1,13 +1,14 @@
 from datetime import date, timedelta
 from typing import TypeVar
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..auth import get_current_user
 from ..database import Base, get_db
 from ..models import ADHKAR_TARGETS, AdhkarTracking, DailyLog, EveningReflection, PrayerTracking, User
+from .. import zikrs as zk
 from ..schemas import (
     AdhkarIn,
     AdhkarOut,
@@ -20,6 +21,8 @@ from ..schemas import (
     ReflectionIn,
     ReflectionOut,
     SummaryOut,
+    ZikrCountsIn,
+    ZikrDayItem,
 )
 
 router = APIRouter(tags=["days"])
@@ -46,12 +49,9 @@ def _apply(row, data) -> None:
         setattr(row, key, value)
 
 
-def adhkar_progress(a: AdhkarTracking | None) -> int:
-    """Har bir zikrning bajarilish ulushi o'rtachasi (0..100)."""
-    if a is None:
-        return 0
-    ratios = [min(getattr(a, k) or 0, t) / t for k, t in ADHKAR_TARGETS.items()]
-    return round(100 * sum(ratios) / len(ratios))
+def day_progress(db: Session, user_id: int, d: date, zikrs: list[dict] | None = None) -> int:
+    zikrs = zikrs if zikrs is not None else zk.effective_zikrs(db, user_id)
+    return zk.progress(zikrs, zk.counts_for(db, user_id, d))
 
 
 def _prayers_done(p: PrayerTracking | None) -> int:
@@ -63,7 +63,9 @@ def _day(db: Session, user: User, d: date) -> DayOut:
     prayers = _find(db, PrayerTracking, user.id, d)
     adhkar = _find(db, AdhkarTracking, user.id, d)
     refl = _find(db, EveningReflection, user.id, d)
-    progress = adhkar_progress(adhkar)
+    zikrs = zk.effective_zikrs(db, user.id)
+    counts = zk.counts_for(db, user.id, d)
+    progress = zk.progress(zikrs, counts)
     return DayOut(
         date=d,
         log=DailyLogOut.model_validate(log) if log else DailyLogOut(),
@@ -73,6 +75,7 @@ def _day(db: Session, user: User, d: date) -> DayOut:
         adhkar_targets=ADHKAR_TARGETS,
         adhkar_progress=progress,
         adhkar_all_done=progress == 100,
+        zikrs=[ZikrDayItem(**z, count=min(counts.get(z["id"], 0), z["target"])) for z in zikrs],
     )
 
 
@@ -105,6 +108,22 @@ def put_adhkar(d: date, data: AdhkarIn, user: User = Depends(get_current_user), 
             values[key] = min(values[key], target)
     for key, value in values.items():
         setattr(row, key, value)
+    zk.mirror_legacy(db, user.id, d, values)
+    db.commit()
+    return _day(db, user, d)
+
+
+@router.put("/days/{d}/zikrs", response_model=DayOut)
+def put_zikr_counts(
+    d: date, data: ZikrCountsIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """Zikr sanoqlari: {"counts": {"<zikr_id>": son}}. Maqsaddan oshsa kesiladi."""
+    by_id = {z["id"]: z for z in zk.effective_zikrs(db, user.id)}
+    unknown = [i for i in data.counts if i not in by_id]
+    if unknown:
+        raise HTTPException(status_code=404, detail="Zikr topilmadi")
+    for zid, n in data.counts.items():
+        zk.set_count(db, user.id, d, by_id[zid], n)
     db.commit()
     return _day(db, user, d)
 
@@ -125,18 +144,23 @@ def summary(d: date, user: User = Depends(get_current_user), db: Session = Depen
     Affirmatsiya bugun yozilmagan bo'lsa, oxirgi yozilgani ko'rsatiladi.
     """
     prayers = _find(db, PrayerTracking, user.id, d)
+    log = _find(db, DailyLog, user.id, d)
     affirmation = db.scalar(
         select(DailyLog.affirmation)
         .where(DailyLog.user_id == user.id, DailyLog.date <= d, DailyLog.affirmation != "")
         .order_by(DailyLog.date.desc())
         .limit(1)
     )
+    zikrs = zk.effective_zikrs(db, user.id)
+    counts = zk.counts_for(db, user.id, d)
     return SummaryOut(
         date=d,
-        adhkar_progress=adhkar_progress(_find(db, AdhkarTracking, user.id, d)),
+        adhkar_progress=zk.progress(zikrs, counts),
+        zikrs=[{"title": z["title"], "count": min(counts.get(z["id"], 0), z["target"]), "target": z["target"]} for z in zikrs],
         prayers=PrayersOut.model_validate(prayers) if prayers else PrayersOut(),
         prayers_done=_prayers_done(prayers),
         affirmation=affirmation or "",
+        daily_plans=log.daily_plans if log else "",
     )
 
 
@@ -153,7 +177,9 @@ def history(
         rows = db.scalars(select(model).where(model.user_id == user.id, model.date >= start, model.date <= end))
         return {r.date: r for r in rows}
 
-    prayers, adhkar, refl = by_date(PrayerTracking), by_date(AdhkarTracking), by_date(EveningReflection)
+    prayers, refl = by_date(PrayerTracking), by_date(EveningReflection)
+    zikrs = zk.effective_zikrs(db, user.id)
+    counts = zk.counts_between(db, user.id, start, end)
     out = []
     for i in range(days):
         d = start + timedelta(days=i)
@@ -162,7 +188,7 @@ def history(
             HistoryItem(
                 date=d,
                 prayers_done=_prayers_done(prayers.get(d)),
-                adhkar_progress=adhkar_progress(adhkar.get(d)),
+                adhkar_progress=zk.progress(zikrs, counts.get(d, {})),
                 overall_score=r.overall_score if r else None,
             )
         )

@@ -4,6 +4,7 @@ import re
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_niyat.db"
 os.environ["TELEGRAM_BOT_TOKEN"] = ""  # testda haqiqiy bot ishga tushmasin
+os.environ["ADMIN_PASSWORD"] = "admin-test-pass"
 
 import pytest
 from fastapi.testclient import TestClient
@@ -294,3 +295,130 @@ def test_known_chat_start_link_sends_code(client):
     code = _code_from(bot.last_text())
     r = client.post("/auth/register", json={"token": body["token"], "code": code, "password": "secret123"})
     assert r.status_code == 201, r.text
+
+
+# ---------------- Zikrlar ----------------
+def test_default_zikrs_seeded_and_counts(client):
+    h = _auth(client)
+    zs = client.get("/zikrs", headers=h).json()
+    assert [z["legacy_key"] for z in zs][:2] == ["salavat_count", "zikr_count"]
+    assert len(zs) == 6 and all(z["text"] for z in zs)
+    salovat = zs[0]
+    d = client.put(f"/days/{DAY}/zikrs", json={"counts": {str(salovat["id"]): 250}}, headers=h).json()
+    item = next(z for z in d["zikrs"] if z["id"] == salovat["id"])
+    assert item["count"] == 100  # maqsaddan oshmaydi
+    assert d["adhkar"]["salavat_count"] == 100  # eski ustunga ham yoziladi
+    assert d["adhkar_progress"] == round(100 / 6)
+    # Eski API orqali yozilsa — yangi jadvalda ham ko'rinadi
+    d = client.put(f"/days/{DAY}/adhkar", json={"waqiah_count": 5}, headers=h).json()
+    assert next(z for z in d["zikrs"] if z["legacy_key"] == "waqiah_count")["count"] == 5
+    assert client.put(f"/days/{DAY}/zikrs", json={"counts": {"99999": 1}}, headers=h).status_code == 404
+    # Bir so'rovda bir nechta zikr — yangi kun uchun ham (eski jadvalda takror qator bo'lmasin)
+    ids = [z["id"] for z in zs]
+    d = client.put("/days/2026-11-07/zikrs", json={"counts": {str(i): 10 for i in ids}}, headers=h).json()
+    assert all(z["count"] == 10 for z in d["zikrs"])
+
+
+def test_custom_zikr_and_overrides(client):
+    h = _auth(client)
+    h2 = _auth(client, phone="+998907777777", chat_id=222)
+    r = client.post("/zikrs", json={"title": "Subhanalloh", "text": "Alloh pokdir", "target": 33}, headers=h)
+    assert r.status_code == 201, r.text
+    mine = r.json()
+    assert mine["is_custom"] is True
+    # Boshqa foydalanuvchiga ko'rinmaydi
+    assert all(z["id"] != mine["id"] for z in client.get("/zikrs", headers=h2).json())
+    assert client.patch(f"/zikrs/{mine['id']}", json={"target": 5}, headers=h2).status_code == 404
+
+    d = client.put(f"/days/{DAY}/zikrs", json={"counts": {str(mine["id"]): 33}}, headers=h).json()
+    assert len(d["zikrs"]) == 7 and d["adhkar_progress"] == round(100 / 7)
+
+    # Default zikr matnini faqat o'zi uchun o'zgartirish
+    default = client.get("/zikrs", headers=h).json()[0]
+    z = client.patch(f"/zikrs/{default['id']}", json={"text": "Mening matnim", "target": 50}, headers=h).json()
+    assert z["text"] == "Mening matnim" and z["target"] == 50 and z["edited"] is True
+    other = next(x for x in client.get("/zikrs", headers=h2).json() if x["id"] == default["id"])
+    assert other["text"] != "Mening matnim" and other["target"] == 100
+    z = client.post(f"/zikrs/{default['id']}/reset", headers=h).json()
+    assert z["edited"] is False and z["target"] == 100
+
+    # Default zikrni yashirish va qaytarish; o'z zikrini o'chirish
+    assert client.delete(f"/zikrs/{default['id']}", headers=h).status_code == 204
+    assert all(x["id"] != default["id"] for x in client.get("/zikrs", headers=h).json())
+    assert len(client.post("/zikrs/restore-hidden", headers=h).json()) == 7
+    assert client.delete(f"/zikrs/{mine['id']}", headers=h).status_code == 204
+    assert len(client.get("/zikrs", headers=h).json()) == 6
+
+
+def test_summary_has_plans(client):
+    h = _auth(client)
+    client.put(f"/days/{DAY}/log", json={"daily_plans": "Kitob o'qish\nSport"}, headers=h)
+    s = client.get(f"/summary/{DAY}", headers=h).json()
+    assert s["daily_plans"] == "Kitob o'qish\nSport"
+
+
+# ---------------- Admin ----------------
+def _admin(client):
+    assert client.post("/admin/api/login", json={"password": "wrong"}).status_code == 401
+    r = client.post("/admin/api/login", json={"password": "admin-test-pass"})
+    assert r.status_code == 200
+    return {"Authorization": f"Bearer {r.json()['token']}"}
+
+
+def test_admin_requires_login(client):
+    assert client.get("/admin/api/stats").status_code == 401
+    h = _auth(client)
+    assert client.get("/admin/api/stats", headers=h).status_code == 401  # oddiy foydalanuvchi tokeni
+    a = _admin(client)
+    assert client.get("/auth/me", headers=a).status_code == 401  # admin tokeni oddiy API'da ishlamaydi
+    assert client.get("/admin").status_code == 200
+
+
+def test_admin_manage_default_zikrs(client):
+    a = _admin(client)
+    h = _auth(client)
+    zs = client.get("/admin/api/zikrs", headers=a).json()["zikrs"]
+    assert len(zs) == 6
+    r = client.post("/admin/api/zikrs", json={"title": "Hasbunalloh", "target": 70, "text": "Alloh bizga kifoya"}, headers=a)
+    assert r.status_code == 201
+    new = r.json()
+    assert any(z["id"] == new["id"] for z in client.get("/zikrs", headers=h).json())
+    # Defaultni o'zgartirish hammaga ta'sir qiladi
+    client.patch(f"/admin/api/zikrs/{zs[0]['id']}", json={"target": 300, "title": "Salovat sharif"}, headers=a)
+    first = client.get("/zikrs", headers=h).json()[0]
+    assert first["target"] == 300 and first["title"] == "Salovat sharif"
+    # Faolsizlantirish — foydalanuvchida ko'rinmaydi
+    client.patch(f"/admin/api/zikrs/{new['id']}", json={"active": False}, headers=a)
+    assert all(z["id"] != new["id"] for z in client.get("/zikrs", headers=h).json())
+    assert client.delete(f"/admin/api/zikrs/{new['id']}", headers=a).status_code == 204
+
+
+def test_admin_stats_and_users(client):
+    a = _admin(client)
+    h = _auth(client)
+    client.get("/auth/me", headers=h)
+    from app.routers.admin import _today
+
+    today = _today().isoformat()
+    client.put(f"/days/{today}/prayers", json={"fajr": True, "dhuhr": True}, headers=h)
+    s = client.get("/admin/api/stats", headers=a).json()
+    assert s["users_total"] == 1 and s["active_today"] == 1 and s["prayers_marked_today"] == 2
+    assert s["online_15m"] == 1 and len(s["series"]) == 14
+    users = client.get("/admin/api/users?q=9012", headers=a).json()
+    assert users["total"] == 1 and users["items"][0]["prayers_today"] == 2
+    assert client.get("/admin/api/users?q=555", headers=a).json()["total"] == 0
+    uid = users["items"][0]["id"]
+    det = client.get(f"/admin/api/users/{uid}", headers=a).json()
+    assert det["history"][-1]["prayers_done"] == 2 and len(det["zikrs"]) == 6
+
+
+def test_profile_name_avatar(client):
+    h = _auth(client)
+    r = client.patch("/auth/me", json={"name": "  Muhammad   Aliyev ", "avatar": "data:image/jpeg;base64,AAAA"}, headers=h)
+    assert r.status_code == 200 and r.json()["name"] == "Muhammad Aliyev"
+    me = client.get("/auth/me", headers=h).json()
+    assert me["avatar"].startswith("data:image/jpeg") and me["name"] == "Muhammad Aliyev"
+    assert client.patch("/auth/me", json={"avatar": "http://evil"}, headers=h).status_code == 422
+    assert client.patch("/auth/me", json={"avatar": ""}, headers=h).json()["avatar"] == ""
+    s = client.get(f"/summary/{DAY}", headers=h).json()
+    assert len(s["zikrs"]) == 6 and {"title", "count", "target"} <= set(s["zikrs"][0])

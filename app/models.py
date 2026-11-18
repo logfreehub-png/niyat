@@ -19,6 +19,11 @@ class User(Base):
     telegram_chat_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    # Admin panelda kuzatish uchun: oxirgi marta ilovadan foydalangan vaqti
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Profil: foydalanuvchi o'zi to'ldiradi
+    name: Mapped[str] = mapped_column(String(100), default="")
+    avatar: Mapped[str] = mapped_column(Text, default="")  # data:image/jpeg;base64,... (kichik, ilovada siqiladi)
 
 
 class PhoneVerification(Base):
@@ -119,3 +124,54 @@ class EveningReflection(Base):
     good_deeds: Mapped[str] = mapped_column(Text, default="")
     mistakes_to_fix: Mapped[str] = mapped_column(Text, default="")
     overall_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+class Zikr(Base):
+    """Zikr/salovat ta'rifi.
+
+    user_id = NULL — admin boshqaradigan umumiy (default) zikr, hamma foydalanuvchida ko'rinadi.
+    user_id = N    — foydalanuvchining o'zi qo'shgan zikri.
+    legacy_key     — eski ``adhkar_tracking`` ustuni (masalan ``salavat_count``) bilan bog'lanish.
+    """
+
+    __tablename__ = "zikrs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    arabic: Mapped[str] = mapped_column(Text, default="")
+    text: Mapped[str] = mapped_column(Text, default="")  # o'zbekcha o'qilishi / ma'nosi
+    icon: Mapped[str] = mapped_column(String(64), default="star-four-points-outline")
+    target: Mapped[int] = mapped_column(Integer, default=100)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    legacy_key: Mapped[str | None] = mapped_column(String(32), nullable=True, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class ZikrOverride(Base):
+    """Foydalanuvchi default zikrni o'zi uchun o'zgartirsa (matn, nom, maqsad) yoki yashirsa."""
+
+    __tablename__ = "zikr_overrides"
+    __table_args__ = (UniqueConstraint("user_id", "zikr_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    zikr_id: Mapped[int] = mapped_column(ForeignKey("zikrs.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    target: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    hidden: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class ZikrCount(Base):
+    """Kunlik sanoq: (foydalanuvchi, sana, zikr) → son."""
+
+    __tablename__ = "zikr_counts"
+    __table_args__ = (UniqueConstraint("user_id", "date", "zikr_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    date: Mapped[date] = mapped_column(Date, index=True)
+    zikr_id: Mapped[int] = mapped_column(ForeignKey("zikrs.id", ondelete="CASCADE"), index=True)
+    count: Mapped[int] = mapped_column(Integer, default=0)
