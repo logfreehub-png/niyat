@@ -21,6 +21,9 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     # Admin panelda kuzatish uchun: oxirgi marta ilovadan foydalangan vaqti
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Profil: foydalanuvchi o'zi to'ldiradi
+    name: Mapped[str] = mapped_column(String(100), default="")
+    avatar: Mapped[str] = mapped_column(Text, default="")  # data:image/jpeg;base64,... (kichik, ilovada siqiladi)
 
 
 class PhoneVerification(Base):

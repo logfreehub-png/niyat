@@ -12,7 +12,11 @@ from .database import Base
 ADDED_COLUMNS = {
     # jadval: {ustun: SQL ta'rifi}
     "phone_verifications": {"purpose": "VARCHAR(16) NOT NULL DEFAULT 'register'"},
-    "users": {"last_seen_at": "TIMESTAMP"},
+    "users": {
+        "last_seen_at": "TIMESTAMP",
+        "name": "VARCHAR(100) NOT NULL DEFAULT ''",
+        "avatar": "TEXT NOT NULL DEFAULT ''",
+    },
 }
 
 

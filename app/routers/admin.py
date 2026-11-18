@@ -223,6 +223,9 @@ def admin_users(
     if digits:
         stmt = stmt.where(User.phone.contains(digits))
         count_stmt = count_stmt.where(User.phone.contains(digits))
+    elif q.strip():
+        stmt = stmt.where(User.name.ilike(f"%{q.strip()}%"))
+        count_stmt = count_stmt.where(User.name.ilike(f"%{q.strip()}%"))
     order = (
         [User.last_seen_at.is_(None), User.last_seen_at.desc(), User.id.desc()]
         if sort == "last_seen"
@@ -252,6 +255,8 @@ def admin_users(
             {
                 "id": u.id,
                 "phone": u.phone,
+                "name": u.name,
+                "avatar": u.avatar,
                 "created_at": _local(u.created_at),
                 "last_seen_at": _local(u.last_seen_at),
                 "telegram": u.telegram_chat_id is not None,
@@ -297,6 +302,8 @@ def admin_user_detail(user_id: int, db: Session = Depends(get_db)):
     return {
         "id": u.id,
         "phone": u.phone,
+        "name": u.name,
+        "avatar": u.avatar,
         "created_at": _local(u.created_at),
         "last_seen_at": _local(u.last_seen_at),
         "telegram": u.telegram_chat_id is not None,

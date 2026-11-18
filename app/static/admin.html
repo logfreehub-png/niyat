@@ -99,6 +99,8 @@
   .tablewrap { overflow-x: auto; }
   .meter { display: inline-block; width: 60px; height: 6px; border-radius: 3px; background: var(--alt); vertical-align: middle; margin-right: 6px; overflow: hidden; }
   .meter > i { display: block; height: 100%; background: var(--primary); }
+  .who { display: flex; align-items: center; gap: 10px; }
+  .ava { border-radius: 50%; object-fit: cover; background: var(--primary-soft); color: var(--primary); display: inline-grid; place-items: center; font-weight: 800; flex: none; }
   .online { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #2BB38A; margin-right: 6px; }
   .pager { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; color: var(--muted); }
 
@@ -176,14 +178,14 @@
       <div class="row" style="justify-content: space-between; margin-bottom: 14px;">
         <div><h2>Foydalanuvchilar</h2><p class="sub" style="margin:0" id="usersSub"></p></div>
         <div class="row">
-          <input type="search" id="q" placeholder="Telefon raqam bo'yicha qidirish" style="width: 260px" />
+          <input type="search" id="q" placeholder="Ism yoki telefon raqam" style="width: 260px" />
           <select id="sort" style="width: auto"><option value="last_seen">Oxirgi faollik</option><option value="created">Ro'yxatdan o'tgan</option></select>
         </div>
       </div>
       <div class="card" style="padding: 0">
         <div class="tablewrap">
           <table>
-            <thead><tr><th>Telefon</th><th>Oxirgi faollik</th><th>Ro'yxatdan o'tgan</th><th>30 kunda faol</th><th>Bugun namoz</th><th>Bugun zikr</th><th>Shaxsiy zikr</th><th>Telegram</th></tr></thead>
+            <thead><tr><th>Foydalanuvchi</th><th>Oxirgi faollik</th><th>Ro'yxatdan o'tgan</th><th>30 kunda faol</th><th>Bugun namoz</th><th>Bugun zikr</th><th>Shaxsiy zikr</th><th>Telegram</th></tr></thead>
             <tbody id="ubody"></tbody>
           </table>
         </div>
@@ -312,11 +314,9 @@ function zikrCard(z, isNew = false) {
           ${z.users_today ? ` · <span class="pill g">bugun ${z.users_today} kishi</span>` : ''}
           ${z.legacy_key ? ' · <span class="pill">asosiy</span>' : ''}</div>
       </div>
-      <div class="z-ar">${esc(z.arabic)}</div>
     </div>
     <form class="z-body ${isNew ? '' : 'hidden'}">
-      <label class="field"><span>Nomi</span><input type="text" name="title" value="${esc(z.title)}" required maxlength="200" /></label>
-      <label class="field"><span>Arabcha yozuvi</span><input type="text" name="arabic" class="arabic" value="${esc(z.arabic)}" /></label>
+      <label class="field full"><span>Nomi</span><input type="text" name="title" value="${esc(z.title)}" required maxlength="200" /></label>
       <label class="field full"><span>O'zbekcha o'qilishi va ma'nosi (tasbeh ichida ko'rinadi)</span><textarea name="text" rows="6">${esc(z.text)}</textarea></label>
       <label class="field"><span>Kunlik maqsad (necha marta)</span><input type="number" name="target" min="1" max="100000" value="${esc(z.target ?? 100)}" required /></label>
       <label class="field"><span>Tartib raqami (kichigi oldinda)</span><input type="number" name="sort_order" value="${esc(z.sort_order ?? 0)}" /></label>
@@ -334,7 +334,7 @@ function zikrCard(z, isNew = false) {
     e.preventDefault();
     const f = new FormData(form);
     const body = {
-      title: f.get('title'), arabic: f.get('arabic'), text: f.get('text'), icon: f.get('icon'),
+      title: f.get('title'), text: f.get('text'), icon: f.get('icon'),
       target: Number(f.get('target')), sort_order: Number(f.get('sort_order')), active: form.active.checked,
     };
     try {
@@ -362,6 +362,12 @@ $('#addZikr').onclick = () => {
 function alertBox(msg) { alert(msg); }
 
 // ---------- Foydalanuvchilar ----------
+function avatar(u, size = 34) {
+  const st = `width:${size}px;height:${size}px`;
+  if (u.avatar && u.avatar.startsWith('data:image/')) return `<img class="ava" style="${st}" src="${esc(u.avatar)}" alt="" />`;
+  const letter = (u.name || '').trim()[0] || '☾';
+  return `<span class="ava" style="${st}">${esc(letter.toUpperCase())}</span>`;
+}
 let qTimer;
 $('#q').addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(() => { uOffset = 0; loadUsers(); }, 300); });
 $('#sort').onchange = () => { uOffset = 0; loadUsers(); };
@@ -374,7 +380,7 @@ async function loadUsers() {
   $('#usersSub').textContent = 'Jami: ' + r.total;
   $('#ubody').innerHTML = r.items.length ? r.items.map((u) => `
     <tr data-id="${u.id}">
-      <td><strong>${isOnline(u.last_seen_at) ? '<i class="online" title="onlayn"></i>' : ''}${esc(u.phone)}</strong></td>
+      <td><div class="who">${avatar(u)}<div><strong>${isOnline(u.last_seen_at) ? '<i class="online" title="onlayn"></i>' : ''}${esc(u.name || u.phone)}</strong>${u.name ? `<div class="z-meta">${esc(u.phone)}</div>` : ''}</div></div></td>
       <td title="${esc(fmt(u.last_seen_at))}">${esc(ago(u.last_seen_at))}</td>
       <td>${esc(fmt(u.created_at))}</td>
       <td>${u.active_days_30} kun</td>
@@ -393,7 +399,7 @@ async function openUser(id) {
   const u = await api('/admin/api/users/' + id);
   const d = $('#drawer');
   d.innerHTML = `<div class="drawer">
-    <div class="row" style="justify-content:space-between"><h2>${esc(u.phone)}</h2><button class="btn ghost" data-close>Yopish</button></div>
+    <div class="row" style="justify-content:space-between"><div class="who">${avatar(u, 48)}<div><h2>${esc(u.name || u.phone)}</h2>${u.name ? `<div class="z-meta">${esc(u.phone)}</div>` : ''}</div></div><button class="btn ghost" data-close>Yopish</button></div>
     <p class="sub">Ro'yxatdan o'tgan: ${esc(fmt(u.created_at))} · Oxirgi faollik: ${esc(ago(u.last_seen_at))} · Telegram: ${u.telegram ? 'bog\'langan' : 'yo\'q'}</p>
     <div class="card" style="margin-bottom:14px">
       <div class="row" style="justify-content:space-between;margin-bottom:8px"><strong>14 kunlik faollik</strong>

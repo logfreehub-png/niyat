@@ -410,3 +410,15 @@ def test_admin_stats_and_users(client):
     uid = users["items"][0]["id"]
     det = client.get(f"/admin/api/users/{uid}", headers=a).json()
     assert det["history"][-1]["prayers_done"] == 2 and len(det["zikrs"]) == 6
+
+
+def test_profile_name_avatar(client):
+    h = _auth(client)
+    r = client.patch("/auth/me", json={"name": "  Muhammad   Aliyev ", "avatar": "data:image/jpeg;base64,AAAA"}, headers=h)
+    assert r.status_code == 200 and r.json()["name"] == "Muhammad Aliyev"
+    me = client.get("/auth/me", headers=h).json()
+    assert me["avatar"].startswith("data:image/jpeg") and me["name"] == "Muhammad Aliyev"
+    assert client.patch("/auth/me", json={"avatar": "http://evil"}, headers=h).status_code == 422
+    assert client.patch("/auth/me", json={"avatar": ""}, headers=h).json()["avatar"] == ""
+    s = client.get(f"/summary/{DAY}", headers=h).json()
+    assert len(s["zikrs"]) == 6 and {"title", "count", "target"} <= set(s["zikrs"][0])

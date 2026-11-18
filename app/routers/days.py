@@ -151,9 +151,12 @@ def summary(d: date, user: User = Depends(get_current_user), db: Session = Depen
         .order_by(DailyLog.date.desc())
         .limit(1)
     )
+    zikrs = zk.effective_zikrs(db, user.id)
+    counts = zk.counts_for(db, user.id, d)
     return SummaryOut(
         date=d,
-        adhkar_progress=day_progress(db, user.id, d),
+        adhkar_progress=zk.progress(zikrs, counts),
+        zikrs=[{"title": z["title"], "count": min(counts.get(z["id"], 0), z["target"]), "target": z["target"]} for z in zikrs],
         prayers=PrayersOut.model_validate(prayers) if prayers else PrayersOut(),
         prayers_done=_prayers_done(prayers),
         affirmation=affirmation or "",

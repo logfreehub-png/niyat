@@ -41,6 +41,14 @@ class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     phone: str
+    name: str = ""
+    avatar: str = ""
+
+
+class ProfileIn(BaseModel):
+    name: str | None = Field(default=None, max_length=100)
+    # data:image/...;base64,...  ("" — rasmni o'chirish). ~300 KB gacha
+    avatar: str | None = Field(default=None, max_length=400_000)
 
 
 class Token(BaseModel):
@@ -179,6 +187,7 @@ class SummaryOut(BaseModel):
     prayers_done: int
     affirmation: str
     daily_plans: str = ""
+    zikrs: list[dict] = []  # [{"title", "count", "target"}] — vidjet uchun
 
 
 class HistoryItem(BaseModel):
