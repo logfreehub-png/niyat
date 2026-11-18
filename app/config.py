@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     code_ttl_minutes: int = 5  # tasdiqlash kodining amal qilish muddati
     code_max_attempts: int = 5
 
+    # Admin panel (/admin) paroli. Bo'sh bo'lsa admin panel o'chiq.
+    admin_password: str = ""
+    # Statistikada "bugun" qaysi soat mintaqasida hisoblanadi (O'zbekiston: UTC+5)
+    tz_offset_hours: int = 5
+
     # Webhook rejimi: serverning ommaviy manzili (masalan https://niyat-baog.onrender.com).
     # Bo'sh bo'lsa Render avtomatik beradigan RENDER_EXTERNAL_URL ishlatiladi.
     # Ikkalasi ham bo'sh bo'lsa (lokal ishlab chiqish) — long polling.

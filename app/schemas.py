@@ -121,6 +121,43 @@ class ReflectionOut(BaseModel):
     overall_score: int | None = None
 
 
+# ---- Zikrlar ----
+class ZikrOut(BaseModel):
+    id: int
+    title: str
+    arabic: str = ""
+    text: str = ""
+    icon: str
+    target: int
+    is_custom: bool  # foydalanuvchi o'zi qo'shgan
+    edited: bool = False  # default zikr foydalanuvchi tomonidan o'zgartirilgan
+    legacy_key: str | None = None
+
+
+class ZikrDayItem(ZikrOut):
+    count: int = 0
+
+
+class ZikrCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    arabic: str = Field(default="", max_length=4000)
+    text: str = Field(default="", max_length=20000)
+    icon: str = Field(default="star-four-points-outline", max_length=64)
+    target: int = Field(default=100, ge=1, le=100000)
+
+
+class ZikrPatch(BaseModel):
+    title: str | None = Field(default=None, max_length=200)
+    arabic: str | None = Field(default=None, max_length=4000)
+    text: str | None = Field(default=None, max_length=20000)
+    icon: str | None = Field(default=None, max_length=64)
+    target: int | None = Field(default=None, ge=1, le=100000)
+
+
+class ZikrCountsIn(BaseModel):
+    counts: dict[int, int]  # zikr_id → sanoq
+
+
 # ---- Aggregates ----
 class DayOut(BaseModel):
     date: date
@@ -131,6 +168,7 @@ class DayOut(BaseModel):
     adhkar_targets: dict[str, int]
     adhkar_progress: int  # 0..100 %
     adhkar_all_done: bool
+    zikrs: list[ZikrDayItem] = []
 
 
 class SummaryOut(BaseModel):
@@ -140,6 +178,7 @@ class SummaryOut(BaseModel):
     prayers: PrayersOut
     prayers_done: int
     affirmation: str
+    daily_plans: str = ""
 
 
 class HistoryItem(BaseModel):
@@ -147,3 +186,18 @@ class HistoryItem(BaseModel):
     prayers_done: int
     adhkar_progress: int
     overall_score: int | None
+
+
+# ---- Admin ----
+class AdminLoginIn(BaseModel):
+    password: str = Field(max_length=200)
+
+
+class AdminZikrIn(ZikrCreate):
+    sort_order: int = 0
+    active: bool = True
+
+
+class AdminZikrPatch(ZikrPatch):
+    sort_order: int | None = None
+    active: bool | None = None

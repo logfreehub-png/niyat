@@ -10,7 +10,7 @@ from . import telegram_bot
 from .config import settings
 from .database import engine
 from .migrations import run_migrations
-from .routers import auth, days
+from .routers import admin, auth, days, zikrs
 
 logging.basicConfig(level=logging.INFO)
 # httpx so'rov URL'ini (ichida bot tokeni bor) logga yozmasin
@@ -39,7 +39,7 @@ async def lifespan(_: FastAPI):
         await telegram_bot.bot.close()
 
 
-app = FastAPI(title="Niyat — Ma'naviy Kundalik API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Niyat — Ma'naviy Kundalik API", version="1.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -50,6 +50,8 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(days.router)
+app.include_router(zikrs.router)
+app.include_router(admin.router)
 
 
 @app.get("/health")

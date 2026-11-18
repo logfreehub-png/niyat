@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .database import get_db
-from .models import User
+from .models import User, utcnow
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -41,7 +41,14 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         user_id = int(payload["sub"])
     except (jwt.PyJWTError, KeyError, ValueError):
         raise credentials_error
+    if payload.get("adm"):
+        raise credentials_error  # admin tokeni oddiy API uchun yaroqsiz
     user = db.get(User, user_id)
     if user is None:
         raise credentials_error
+    # Admin panel uchun "oxirgi faollik" (har so'rovda emas — 2 daqiqada bir marta yozamiz)
+    now = utcnow()
+    if user.last_seen_at is None or (now - user.last_seen_at).total_seconds() > 120:
+        user.last_seen_at = now
+        db.commit()
     return user
