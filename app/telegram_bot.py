@@ -192,7 +192,11 @@ class TelegramBot:
             try:
                 if self.username is None:
                     info = await self.api("getWebhookInfo")
-                    if info.get("url"):
+                    if info.get("url") and settings.telegram_polling_takeover:
+                        # Bu server botni o'zi boshqaradi: eski (masalan Render) webhook'ini o'chiramiz
+                        log.warning("Webhook o'chirilmoqda (%s) — bot shu serverda polling bilan ishlaydi", info["url"])
+                        await self.api("deleteWebhook", drop_pending_updates=False)
+                    elif info.get("url"):
                         # Production webhook'ini o'chirib yubormaslik uchun polling qilmaymiz
                         log.warning(
                             "Bot webhook rejimida ishlayapti (%s) — lokal polling o'chirildi. "
@@ -212,8 +216,16 @@ class TelegramBot:
                         log.exception("Update'ni qayta ishlashda xato")
             except asyncio.CancelledError:
                 raise
-            except Exception:
-                log.exception("Telegram bilan aloqa xatosi, 5 soniyadan keyin qayta urinish")
+            except Exception as e:
+                if settings.telegram_polling_takeover and "webhook" in str(e).lower():
+                    # Boshqa server webhook'ni qayta o'rnatgan — yana o'zimizga olamiz
+                    log.warning("Webhook qayta o'rnatilgan, o'chirilmoqda: %s", e)
+                    try:
+                        await self.api("deleteWebhook", drop_pending_updates=False)
+                    except Exception:
+                        log.exception("deleteWebhook xatosi")
+                else:
+                    log.exception("Telegram bilan aloqa xatosi, 5 soniyadan keyin qayta urinish")
                 await asyncio.sleep(5)
 
     async def close(self) -> None:

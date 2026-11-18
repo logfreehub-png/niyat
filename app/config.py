@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     public_url: str = ""
     render_external_url: str = ""
     telegram_webhook_secret: str = ""
+    # true: webhook o'rnatilgan bo'lsa ham uni o'chirib, shu serverda polling qilish (Render'dan ko'chishda)
+    telegram_polling_takeover: bool = False
 
     @property
     def webhook_base_url(self) -> str:
