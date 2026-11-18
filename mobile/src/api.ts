@@ -4,7 +4,7 @@ import { storage } from './storage';
 
 // Android emulyatori uchun 10.0.2.2 = kompyuterning localhost'i.
 // Haqiqiy telefonda Sozlamalar bo'limidan kompyuter IP manzilini kiriting.
-const PROD_URL = 'https://niyat-1.onrender.com';
+const PROD_URL = 'http://195.158.16.125:3050';
 const DEFAULT_URL =
   process.env.EXPO_PUBLIC_API_URL ??
   (!__DEV__ ? PROD_URL : Platform.OS === 'android' ? 'http://10.0.2.2:8001' : 'http://localhost:8001');
