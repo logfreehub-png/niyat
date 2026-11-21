@@ -2,9 +2,11 @@ import asyncio
 import contextlib
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 
 from . import telegram_bot
 from .config import settings
@@ -57,6 +59,15 @@ app.include_router(admin.router)
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+PRIVACY_HTML = Path(__file__).resolve().parent / "static" / "privacy.html"
+
+
+@app.get("/privacy", response_class=HTMLResponse, include_in_schema=False)
+@app.get("/delete-account", response_class=HTMLResponse, include_in_schema=False)
+def privacy():
+    return PRIVACY_HTML.read_text(encoding="utf-8")
 
 
 @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
